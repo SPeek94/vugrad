@@ -10,41 +10,61 @@ import vugrad as vg
 # Parse command line arguments
 parser = ArgumentParser()
 
-parser.add_argument('-D', '--dataset',
-                dest='data',
-                help='Which dataset to use. [synth, mnist]',
-                default='synth', type=str)
+parser.add_argument(
+    "-D",
+    "--dataset",
+    dest="data",
+    help="Which dataset to use. [synth, mnist]",
+    default="synth",
+    type=str,
+)
 
-parser.add_argument('-b', '--batch-size',
-                dest='batch_size',
-                help='The batch size (how many instances to use for a single forward/backward pass).',
-                default=128, type=int)
+parser.add_argument(
+    "-b",
+    "--batch-size",
+    dest="batch_size",
+    help="The batch size (how many instances to use for a single forward/backward pass).",
+    default=128,
+    type=int,
+)
 
-parser.add_argument('-e', '--epochs',
-                dest='epochs',
-                help='The number of epochs (complete passes over the complete training data).',
-                default=20, type=int)
+parser.add_argument(
+    "-e",
+    "--epochs",
+    dest="epochs",
+    help="The number of epochs (complete passes over the complete training data).",
+    default=20,
+    type=int,
+)
 
-parser.add_argument('-l', '--learning-rate',
-                dest='lr',
-                help='The learning rate. That is, a scalar that determines the size of the steps taken by the '
-                     'gradient descent algorithm. 0.1 works well for synth, 0.0001 works well for MNIST.',
-                default=0.01, type=float)
+parser.add_argument(
+    "-l",
+    "--learning-rate",
+    dest="lr",
+    help="The learning rate. That is, a scalar that determines the size of the steps taken by the "
+    "gradient descent algorithm. 0.1 works well for synth, 0.0001 works well for MNIST.",
+    default=0.01,
+    type=float,
+)
 
 args = parser.parse_args()
 
 ## Load the data
-if args.data == 'synth':
+if args.data == "synth":
     (xtrain, ytrain), (xval, yval), num_classes = vg.load_synth()
-elif args.data == 'mnist':
-    (xtrain, ytrain), (xval, yval), num_classes = vg.load_mnist(final=False, flatten=True)
+elif args.data == "mnist":
+    (xtrain, ytrain), (xval, yval), num_classes = vg.load_mnist(
+        final=False, flatten=True
+    )
 else:
-    raise Exception(f'Dataset {args.data} not recognized.')
+    raise Exception(f"Dataset {args.data} not recognized.")
 
-print(f'## loaded data:')
-print(f'         number of instances: {xtrain.shape[0]} in training, {xval.shape[0]} in validation')
-print(f' training class distribution: {np.bincount(ytrain)}')
-print(f'     val. class distribution: {np.bincount(yval)}')
+print(f"## loaded data:")
+print(
+    f"         number of instances: {xtrain.shape[0]} in training, {xval.shape[0]} in validation"
+)
+print(f" training class distribution: {np.bincount(ytrain)}")
+print(f"     val. class distribution: {np.bincount(yval)}")
 
 num_instances, num_features = xtrain.shape
 
@@ -100,16 +120,17 @@ class MLP(vg.Module):
 
         return self.layer1.parameters() + self.layer2.parameters()
 
+
 ## Instantiate the model
 mlp = MLP(input_size=num_features, output_size=num_classes)
 
 n, m = xtrain.shape
 b = args.batch_size
 
-print('\n## Starting training')
+print("\n## Starting training")
 for epoch in range(args.epochs):
 
-    print(f'epoch {epoch:03}')
+    print(f"epoch {epoch:03}")
 
     ## Compute validation accuracy
     o = mlp(vg.TensorNode(xval))
@@ -119,10 +140,10 @@ for epoch in range(args.epochs):
     num_correct = (predictions == yval).sum()
     acc = num_correct / yval.shape[0]
 
-    o.clear() # gc the computation graph
-    print(f'       accuracy: {acc:.4}')
+    o.clear()  # gc the computation graph
+    print(f"       accuracy: {acc:.4}")
 
-    cl = 0.0 # running sum of the training loss
+    cl = 0.0  # running sum of the training loss
 
     # We loop over the data in batches of size `b`
     for fr in range(0, n, b):
@@ -166,4 +187,4 @@ for epoch in range(args.epochs):
         # ... and delete the parts of the computation graph we don't need to remember.
         loss.clear()
 
-    print(f'   running loss: {cl/n:.4}')
+    print(f"   running loss: {cl/n:.4}")
