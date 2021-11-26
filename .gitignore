@@ -4,6 +4,6 @@
 *.pdf
 
 # data files
-/data
-assignments/Assign2/code/data/cifar-10-batches-py
-assignments/Assign2/jens
+# /data
+# assignments/Assign2/code/data/cifar-10-batches-py
+# assignments/Assign2/jens
