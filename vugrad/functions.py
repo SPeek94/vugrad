@@ -1,4 +1,17 @@
-from .ops import Log, Select, Sum, Normalize, Exp, Sigmoid, RowMax, Expand, RowSum, Unsqueeze, Id
+from .ops import (
+    Log,
+    Select,
+    Sum,
+    Normalize,
+    Exp,
+    Sigmoid,
+    RowMax,
+    Expand,
+    RowSum,
+    Unsqueeze,
+    Id,
+    Relu,
+)
 from .mnist import init, load
 from .core import TensorNode
 
@@ -8,6 +21,7 @@ import os
 """
 A set of utility functions
 """
+
 
 def load_synth(num_train=60_000, num_val=10_000):
     """
@@ -21,14 +35,14 @@ def load_synth(num_train=60_000, num_val=10_000):
     """
 
     THRESHOLD = 0.6
-    quad = np.asarray([[1, 0.5], [1, .2]])
+    quad = np.asarray([[1, 0.5], [1, 0.2]])
 
     ntotal = num_train + num_val
 
     x = np.random.randn(ntotal, 2)
 
     # compute the quadratic form
-    q = np.einsum('bf, fk, bk -> b', x, quad, x)
+    q = np.einsum("bf, fk, bk -> b", x, quad, x)
     y = (q > THRESHOLD).astype(np.int)
 
     return (x[:num_train, :], y[:num_train]), (x[num_train:, :], y[num_train:]), 2
@@ -44,7 +58,7 @@ def load_mnist(final=False, flatten=True):
     :return:
     """
 
-    if not os.path.isfile('mnist.pkl'):
+    if not os.path.isfile("mnist.pkl"):
         init()
 
     xtrain, ytrain, xtest, ytest = load()
@@ -52,12 +66,13 @@ def load_mnist(final=False, flatten=True):
 
     if flatten:
         xtrain = xtrain.reshape(xtl, -1)
-        xtest  = xtest.reshape(xsl, -1)
+        xtest = xtest.reshape(xsl, -1)
 
-    if not final: # return the flattened images
+    if not final:  # return the flattened images
         return (xtrain[:-5000], ytrain[:-5000]), (xtrain[-5000:], ytrain[-5000:]), 10
 
     return (xtrain, ytrain), (xtest, ytest), 10
+
 
 def celoss(outputs, targets):
     """
@@ -79,6 +94,7 @@ def celoss(outputs, targets):
 
     return logceloss(logprobs, targets)
 
+
 def logceloss(logprobs, targets):
     """
     Implementation of the cross-entropy loss from logprobabilities
@@ -95,7 +111,8 @@ def logceloss(logprobs, targets):
     per_instance = Select.do_forward(logprobs, indices=targets)
 
     # The loss sums all these. The higher the better, so we return the negative of this.
-    return Sum.do_forward(per_instance) * - 1.0
+    return Sum.do_forward(per_instance) * -1.0
+
 
 def sigmoid(x):
     """
@@ -105,6 +122,7 @@ def sigmoid(x):
     :return:
     """
     return Sigmoid.do_forward(x)
+
 
 def softmax(x):
     """
@@ -119,6 +137,22 @@ def softmax(x):
     """
 
     return Normalize.do_forward(Exp.do_forward(x))
+
+
+def relu(x):
+    """
+    Applies a row-wise softmax to a matrix
+
+    NB: Softmax is almost never computed like this in serious settings. It's much better
+        to start from logits and use the logsumexp trick, returning
+        `log(softmax(x))`. See the logsoftmax function below.
+
+    :param x: A matrix.
+    :return: A matrix of the same size as x, with normalized rows.
+    """
+
+    return Relu.do_forward(x)
+
 
 def logsoftmax(x):
     """
@@ -141,17 +175,19 @@ def logsoftmax(x):
     xmax = Unsqueeze.do_forward(xmax, dim=1)
     xmax = Expand.do_forward(xmax, repeats=xcols, dim=1)
 
-    assert(xmax.value.shape == x.value.shape), f'{xmax.value.shape}    {x.value.shape}'
+    assert xmax.value.shape == x.value.shape, f"{xmax.value.shape}    {x.value.shape}"
 
     diff = x - xmax
 
-    denominator = RowSum.do_forward( Exp.do_forward(diff) )
+    denominator = RowSum.do_forward(Exp.do_forward(diff))
     denominator = Log.do_forward(denominator)
 
     denominator = Unsqueeze.do_forward(denominator, dim=1)
     denominator = Expand.do_forward(denominator, repeats=xcols, dim=1)
 
-    assert(denominator.value.shape == x.value.shape), f'{denominator.value.shape}    {x.value.shape}'
+    assert (
+        denominator.value.shape == x.value.shape
+    ), f"{denominator.value.shape}    {x.value.shape}"
 
     res = diff - denominator
 
