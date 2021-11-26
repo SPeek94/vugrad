@@ -1,5 +1,5 @@
 from _context import vugrad
-
+import pickle
 import numpy as np
 
 # for running from the command line
@@ -15,7 +15,7 @@ parser.add_argument(
     "--dataset",
     dest="data",
     help="Which dataset to use. [synth, mnist]",
-    default="synth",
+    default="mnist",
     type=str,
 )
 
@@ -43,7 +43,7 @@ parser.add_argument(
     dest="lr",
     help="The learning rate. That is, a scalar that determines the size of the steps taken by the "
     "gradient descent algorithm. 0.1 works well for synth, 0.0001 works well for MNIST.",
-    default=0.01,
+    default=0.0001,
     type=float,
 )
 
@@ -70,7 +70,7 @@ num_instances, num_features = xtrain.shape
 
 # Create a simple neural network.
 # This is a `Module` consisting of other modules representing linear layers, provided by the vugrad library.
-class MLP(vg.Module):
+class MLP_sigmoid(vg.Module):
     """
     A simple MLP with one hidden layer, and a sigmoid non-linearity on the hidden layer and a softmax on the
     output.
@@ -88,8 +88,9 @@ class MLP(vg.Module):
         # -- There is no common wisdom on how big the hidden size should be, apart from the idea
         #    that it should be strictly _bigger_ than the input if at all possible.
 
-        self.layer1 = vg.Linear(input_size, hidden_size)
-        self.layer2 = vg.Linear(hidden_size, output_size)
+        # Inits: glorot (default), he
+        self.layer1 = vg.Linear(input_size, hidden_size, init="glorot")
+        self.layer2 = vg.Linear(hidden_size, output_size, init="glorot")
         # -- The linear layer (without activation) is implemented in vugrad. We simply instantiate these modules, and
         #    add them to our network.
 
@@ -102,6 +103,11 @@ class MLP(vg.Module):
 
         # non-linearity
         hidden = vg.sigmoid(hidden)
+        # -- We've called a utility function here, to mimin how this is usually done in pytorch. We could also do:
+        #    hidden = Sigmoid.do_forward(hidden)
+
+        # non-linearity
+        # hidden = vg.relu(hidden)
         # -- We've called a utility function here, to mimin how this is usually done in pytorch. We could also do:
         #    hidden = Sigmoid.do_forward(hidden)
 
@@ -121,11 +127,146 @@ class MLP(vg.Module):
         return self.layer1.parameters() + self.layer2.parameters()
 
 
+class MLP_relu(vg.Module):
+    """
+    A simple MLP with one hidden layer, and a sigmoid non-linearity on the hidden layer and a softmax on the
+    output.
+    """
+
+    def __init__(self, input_size, output_size, hidden_mult=4):
+        """
+        :param input_size:
+        :param output_size:
+        :param hidden_mult: Multiplier that indicates how many times bigger the hidden layer is than the input layer.
+        """
+        super().__init__()
+
+        hidden_size = hidden_mult * input_size
+        # -- There is no common wisdom on how big the hidden size should be, apart from the idea
+        #    that it should be strictly _bigger_ than the input if at all possible.
+
+        # Inits: glorot (default), he
+        self.layer1 = vg.Linear(input_size, hidden_size, init="he")
+        self.layer2 = vg.Linear(hidden_size, output_size, init="glorot")
+        # -- The linear layer (without activation) is implemented in vugrad. We simply instantiate these modules, and
+        #    add them to our network.
+
+    def forward(self, input):
+
+        assert len(input.size()) == 2
+
+        # first layer
+        hidden = self.layer1(input)
+
+        # non-linearity
+        # hidden = vg.sigmoid(hidden)
+        # -- We've called a utility function here, to mimin how this is usually done in pytorch. We could also do:
+        #    hidden = Sigmoid.do_forward(hidden)
+
+        # non-linearity
+        hidden = vg.relu(hidden)
+        # -- We've called a utility function here, to mimin how this is usually done in pytorch. We could also do:
+        #    hidden = Sigmoid.do_forward(hidden)
+
+        # second layer
+        output = self.layer2(hidden)
+
+        # softmax activation
+        output = vg.logsoftmax(output)
+        # -- the logsoftmax computes the _logarithm_ of the probabilities produced by softmax. This makes the computation
+        #    of the CE loss more stable when the probabilities get close to 0 (remember that the CE loss is the logarithm
+        #    of these probabilities). It needs to be implemented in a specific way. See the source for details.
+
+        return output
+
+    def parameters(self):
+
+        return self.layer1.parameters() + self.layer2.parameters()
+
+
+class MLP_3layers(vg.Module):
+    """
+    A simple MLP with one hidden layer, and a sigmoid non-linearity on the hidden layer and a softmax on the
+    output.
+    """
+
+    def __init__(self, input_size, output_size, hidden_mult=4):
+        """
+        :param input_size:
+        :param output_size:
+        :param hidden_mult: Multiplier that indicates how many times bigger the hidden layer is than the input layer.
+        """
+        super().__init__()
+
+        hidden_size = int(hidden_mult * input_size)
+        # hidden_size2 = int(hidden_size/2)
+        # -- There is no common wisdom on how big the hidden size should be, apart from the idea
+        #    that it should be strictly _bigger_ than the input if at all possible.
+
+        # Inits: glorot (default), he
+        self.layer1 = vg.Linear(input_size, 392, init="he")
+        self.layer2 = vg.Linear(392, 196, init="he")
+        self.layer3 = vg.Linear(196, output_size, init="glorot")
+        # -- The linear layer (without activation) is implemented in vugrad. We simply instantiate these modules, and
+        #    add them to our network.
+
+    def forward(self, input):
+
+        assert len(input.size()) == 2
+
+        # first layer
+        hidden = self.layer1(input)
+
+        # non-linearity
+        # hidden = vg.sigmoid(hidden)
+        # -- We've called a utility function here, to mimin how this is usually done in pytorch. We could also do:
+        #    hidden = Sigmoid.do_forward(hidden)
+
+        # non-linearity
+        hidden = vg.relu(hidden)
+        # -- We've called a utility function here, to mimin how this is usually done in pytorch. We could also do:
+        #    hidden = Sigmoid.do_forward(hidden)
+
+        # second layer
+        hidden = self.layer2(hidden)
+
+        # softmax activation
+        hidden = vg.relu(hidden)
+        # -- the logsoftmax computes the _logarithm_ of the probabilities produced by softmax. This makes the computation
+        #    of the CE loss more stable when the probabilities get close to 0 (remember that the CE loss is the logarithm
+        #    of these probabilities). It needs to be implemented in a specific way. See the source for details.
+
+        # second layer
+        output = self.layer3(hidden)
+
+        # softmax activation
+        output = vg.logsoftmax(output)
+        # -- the logsoftmax computes the _logarithm_ of the probabilities produced by softmax. This makes the computation
+        #    of the CE loss more stable when the probabilities get close to 0 (remember that the CE loss is the logarithm
+        #    of these probabilities). It needs to be implemented in a specific way. See the source for details.
+
+        return output
+
+    def parameters(self):
+
+        return (
+            self.layer1.parameters()
+            + self.layer2.parameters()
+            + self.layer3.parameters()
+        )
+
+
+xtrain = xtrain / 255
+xval = xval / 255
+
+
 ## Instantiate the model
-mlp = MLP(input_size=num_features, output_size=num_classes)
+mlp = MLP_sigmoid(input_size=num_features, output_size=num_classes)
 
 n, m = xtrain.shape
 b = args.batch_size
+
+acc_mlp_sigmoid = []
 
 print("\n## Starting training")
 for epoch in range(args.epochs):
@@ -139,7 +280,7 @@ for epoch in range(args.epochs):
     predictions = np.argmax(oval, axis=1)
     num_correct = (predictions == yval).sum()
     acc = num_correct / yval.shape[0]
-
+    acc_mlp_sigmoid.append(acc)
     o.clear()  # gc the computation graph
     print(f"       accuracy: {acc:.4}")
 
@@ -188,3 +329,158 @@ for epoch in range(args.epochs):
         loss.clear()
 
     print(f"   running loss: {cl/n:.4}")
+
+with open("mlp_sigmoid.pkl", "wb") as f:
+    pickle.dump(acc_mlp_sigmoid, f)
+
+
+
+
+## Instantiate the model
+mlp = MLP_relu(input_size=num_features, output_size=num_classes)
+
+n, m = xtrain.shape
+b = args.batch_size
+
+acc_mlp_relu= []
+
+print("\n## Starting training")
+for epoch in range(args.epochs):
+
+    print(f"epoch {epoch:03}")
+
+    ## Compute validation accuracy
+    o = mlp(vg.TensorNode(xval))
+    oval = o.value
+
+    predictions = np.argmax(oval, axis=1)
+    num_correct = (predictions == yval).sum()
+    acc = num_correct / yval.shape[0]
+    acc_mlp_relu.append(acc)
+    o.clear()  # gc the computation graph
+    print(f"       accuracy: {acc:.4}")
+
+    cl = 0.0  # running sum of the training loss
+
+    # We loop over the data in batches of size `b`
+    for fr in range(0, n, b):
+
+        # The end index of the batch
+        to = min(fr + b, n)
+
+        # Slice out the batch and its corresponding target values
+        batch, targets = xtrain[fr:to, :], ytrain[fr:to]
+
+        # Wrap the inputs in a Node
+        batch = vg.TensorNode(value=batch)
+
+        outputs = mlp(batch)
+        loss = vg.logceloss(outputs, targets)
+        # -- The computation graph is now complete. It consists of the MLP, together with the computation of
+        #    the scalar loss.
+        # -- The variable `loss` is the TensorNode at the very top of our computation graph. This means we can call
+        #    it to perform operations on the computation graph, like clearing the gradients, starting the backpropgation
+        #    and clearing the graph.
+        # -- Note that we set the MLP up to produce log probabilties, so we should compute the CE loss for these.
+
+        cl += loss.value
+        # -- We must be careful here to extract the _raw_ value for the running loss. What would happen if we kept
+        #    a running sum using the TensorNode?
+
+        # Start the backpropagation
+        loss.backward()
+
+        # pply gradient descent
+        for parm in mlp.parameters():
+            parm.value -= args.lr * parm.grad
+            # -- Note that we are directly manipulating the members of the parm TensorNode. This means that for this
+            #    part, we are not building up a computation graph.
+
+        # -- In Pytorch, the gradient descent is abstracted away into an Optimizer. This allows us to build slightly more
+        #    complexoptimizers than plain graident descent.
+
+        # Finally, we need to reset the gradients to zero ...
+        loss.zero_grad()
+        # ... and delete the parts of the computation graph we don't need to remember.
+        loss.clear()
+
+    print(f"   running loss: {cl/n:.4}")
+
+with open("mlp_sigmoid.pkl", "wb") as f:
+    pickle.dump(acc_mlp_relu, f)
+
+
+
+
+## Instantiate the model
+mlp = MLP_3layers(input_size=num_features, output_size=num_classes)
+
+n, m = xtrain.shape
+b = args.batch_size
+
+acc_mlp_3layers = []
+
+print("\n## Starting training")
+for epoch in range(args.epochs):
+
+    print(f"epoch {epoch:03}")
+
+    ## Compute validation accuracy
+    o = mlp(vg.TensorNode(xval))
+    oval = o.value
+
+    predictions = np.argmax(oval, axis=1)
+    num_correct = (predictions == yval).sum()
+    acc = num_correct / yval.shape[0]
+    acc_mlp_3layers.append(acc)
+    o.clear()  # gc the computation graph
+    print(f"       accuracy: {acc:.4}")
+
+    cl = 0.0  # running sum of the training loss
+
+    # We loop over the data in batches of size `b`
+    for fr in range(0, n, b):
+
+        # The end index of the batch
+        to = min(fr + b, n)
+
+        # Slice out the batch and its corresponding target values
+        batch, targets = xtrain[fr:to, :], ytrain[fr:to]
+
+        # Wrap the inputs in a Node
+        batch = vg.TensorNode(value=batch)
+
+        outputs = mlp(batch)
+        loss = vg.logceloss(outputs, targets)
+        # -- The computation graph is now complete. It consists of the MLP, together with the computation of
+        #    the scalar loss.
+        # -- The variable `loss` is the TensorNode at the very top of our computation graph. This means we can call
+        #    it to perform operations on the computation graph, like clearing the gradients, starting the backpropgation
+        #    and clearing the graph.
+        # -- Note that we set the MLP up to produce log probabilties, so we should compute the CE loss for these.
+
+        cl += loss.value
+        # -- We must be careful here to extract the _raw_ value for the running loss. What would happen if we kept
+        #    a running sum using the TensorNode?
+
+        # Start the backpropagation
+        loss.backward()
+
+        # pply gradient descent
+        for parm in mlp.parameters():
+            parm.value -= args.lr * parm.grad
+            # -- Note that we are directly manipulating the members of the parm TensorNode. This means that for this
+            #    part, we are not building up a computation graph.
+
+        # -- In Pytorch, the gradient descent is abstracted away into an Optimizer. This allows us to build slightly more
+        #    complexoptimizers than plain graident descent.
+
+        # Finally, we need to reset the gradients to zero ...
+        loss.zero_grad()
+        # ... and delete the parts of the computation graph we don't need to remember.
+        loss.clear()
+
+    print(f"   running loss: {cl/n:.4}")
+
+with open("mlp_sigmoid.pkl", "wb") as f:
+    pickle.dump(acc_mlp_3layers, f)

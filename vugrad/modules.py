@@ -3,31 +3,46 @@ from .core import Module, TensorNode
 from .ops import *
 from .functions import *
 
+
 class Linear(Module):
     """
     A linear operation. Applies a matrix transformation and a vector translation.
     """
 
-    def __init__(self, input_size, output_size):
+    def __init__(self, input_size, output_size, init="glorot"):
         super().__init__()
 
-        # weights of the matrix transformation
-        glorot_std = np.sqrt(2.0 / (input_size + output_size)) # scalar for Glorot init
-        w = np.random.randn(output_size, input_size) * glorot_std
-        self.w = TensorNode(w)
+        if init == "glorot":
+            # weights of the matrix transformation
+            glorot_std = np.sqrt(
+                2.0 / (input_size + output_size)
+            )  # scalar for Glorot init
+            w = np.random.randn(output_size, input_size) * glorot_std
+            self.w = TensorNode(w)
 
-        # weights of the bias (the translation)
-        b = np.zeros((1, output_size))
-        self.b = TensorNode(b)
-        # -- We initialize the biases to zero for simplicity. This is a common approach, but with ReLU units it's
-        #    sometimes best to add a little noise to avoid dead neurons.
+            # weights of the bias (the translation)
+            b = np.zeros((1, output_size))
+            self.b = TensorNode(b)
+            # -- We initialize the biases to zero for simplicity. This is a common approach, but with ReLU units it's
+            #    sometimes best to add a little noise to avoid dead neurons.
+        elif init == "he":
+            he_std = 2.0 / np.sqrt(input_size + output_size)
+            w = np.random.randn(output_size, input_size) * he_std
+            self.w = TensorNode(w)
+            # weights of the bias (the translation)
+            b = np.zeros((1, output_size))
+            self.b = TensorNode(b)
+            # -- We initialize the biases to zero for simplicity. This is a common approach, but with ReLU units it's
+            #    sometimes best to add a little noise to avoid dead neurons.
 
     def forward(self, input):
 
         outsize, insize = self.w.size()
         n, f = input.size()
 
-        assert f == insize, f'Number of features in input ({f}) does not match input dimension ({insize}).'
+        assert (
+            f == insize
+        ), f"Number of features in input ({f}) does not match input dimension ({insize})."
         assert len(input.size()) == 2
 
         # Multiply all input vectors by the weight matrix.

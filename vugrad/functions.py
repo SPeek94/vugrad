@@ -141,14 +141,10 @@ def softmax(x):
 
 def relu(x):
     """
-    Applies a row-wise softmax to a matrix
-
-    NB: Softmax is almost never computed like this in serious settings. It's much better
-        to start from logits and use the logsumexp trick, returning
-        `log(softmax(x))`. See the logsoftmax function below.
+    Applies a relu operation
 
     :param x: A matrix.
-    :return: A matrix of the same size as x, with normalized rows.
+    :return: A matrix of the same size as x, with the values 0 or X.
     """
 
     return Relu.do_forward(x)
